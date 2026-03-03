@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DataDXB — Distress & Below-Market Deals</title>
+<meta name="description" content="Live distress and below-market Dubai real estate deals curated by Viren">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#09090B;--fg:#FAFAFA;--green:#00FF88;--red:#FF3B30;--orange:#FF9500;--pink:#FF2D55;--yellow:#FFD60A;--blue:#5AC8FA;--mono:'JetBrains Mono',monospace;--sans:'Outfit',sans-serif;--dim:rgba(255,255,255,0.3);--dimmer:rgba(255,255,255,0.12);--line:rgba(255,255,255,0.04);--card:rgba(255,255,255,0.02);--cardborder:rgba(255,255,255,0.05)}
+html,body{background:var(--bg);color:var(--fg);font-family:var(--sans);line-height:1.4;min-height:100vh;-webkit-font-smoothing:antialiased}
+.mono{font-family:var(--mono)}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.deal-row:hover{background:rgba(255,255,255,.02)!important}
+.comm-hdr:hover{background:rgba(255,255,255,.03)!important}
+.fbtn{transition:all .15s;cursor:pointer;border:none;outline:none}
+.fbtn:hover{background:rgba(255,255,255,.08)!important}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:4px}
+a{text-decoration:none}
+.grid-bg{position:fixed;inset:0;opacity:.03;pointer-events:none;background-image:linear-gradient(rgba(255,255,255,.1) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.1) 1px,transparent 1px);background-size:60px 60px}
+.top-line{position:fixed;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--green),transparent);z-index:10}
+.wa-icon{display:inline-block;vertical-align:middle}
+/* Date tab bar */
+.date-tabs{display:flex;gap:4px;overflow-x:auto;padding-bottom:4px;margin-bottom:20px;-webkit-overflow-scrolling:touch}
+.date-tab{padding:6px 16px;border-radius:8px;font-family:var(--mono);font-size:12px;font-weight:500;cursor:pointer;border:1px solid var(--cardborder);background:var(--card);color:var(--dim);white-space:nowrap;transition:all .15s}
+.date-tab.active{background:rgba(0,255,136,.08);color:var(--green);border-color:rgba(0,255,136,.25)}
+.date-tab:hover{background:rgba(255,255,255,.04)}
+/* Admin panel */
+.admin-panel{margin-bottom:24px;padding:20px;border-radius:12px;border:1px dashed rgba(0,255,136,.2);background:rgba(0,255,136,.02)}
+.admin-panel textarea{width:100%;height:120px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:var(--fg);font-family:var(--mono);font-size:11px;padding:12px;resize:vertical}
+.admin-btn{padding:8px 20px;border-radius:8px;font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .15s}
+</style>
+</head>
+<body>
+<div class="grid-bg"></div>
+<div class="top-line"></div>
+
+<div id="app" style="max-width:1100px;margin:0 auto;padding:32px 20px"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// DATA PERSISTENCE — localStorage keeps all days safe
+// ═══════════════════════════════════════════════════════════════
+const STORAGE_KEY = 'datadxb_deals_v1';
+const BUYERS_KEY = 'datadxb_buyers_v1';
+
+function loadAllDeals() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch(e) { return {}; }
+}
+function saveAllDeals(data) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+function loadAllBuyers() {
+  try { return JSON.parse(localStorage.getItem(BUYERS_KEY)) || {}; } catch(e) { return {}; }
+}
+function saveAllBuyers(data) {
+  localStorage.setItem(BUYERS_KEY, JSON.stringify(data));
+}
+
+// Add deals for a specific date (won't overwrite other dates)
+function addDayDeals(dateStr, deals, buyers) {
+  const allDeals = loadAllDeals();
+  allDeals[dateStr] = deals;
+  saveAllDeals(allDeals);
+  if (buyers && buyers.length) {
+    const allBuyers = loadAllBuyers();
+    allBuyers[dateStr] = buyers;
+    saveAllBuyers(allBuyers);
+  }
+}
+
+// Get sorted date keys (newest first)
+function getDateKeys() {
+  return Object.keys(loadAllDeals()).sort().reverse();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SEED TODAY'S DATA (3 March 2026)
+// ═══════════════════════════════════════════════════════════════
+const TODAY_DEALS = [{"id":1,"role":"SELLER","keyword":"below market","urgency":"below_market","time":"08:05 PM","title":"DIFC — Restaurant & Bar","community":"DIFC","building":"","type":"Commercial","beds":null,"area":4305,"price":16000000,"opPrice":null,"discount":null,"handover":"","view":"","furnished":"Furnished","rawExcerpt":"Luxury Restaurant & Bar for Sale | DIFC\n💰 Asking: AED 16,000,000\n📐 BUA: 4,305 Sqft\n200 Indoor Seating\n24/7 Alcohol License\nShisha & Private Pool\nFully Operational\nBelow Market Price"},{"id":3,"role":"SELLER","keyword":"below market","urgency":"below_market","time":"04:05 PM","title":"Numa Reserve — 5BR Villa","community":"Meydan","building":"Numa Reserve","type":"Villa","beds":5,"area":8070,"price":22000000,"opPrice":null,"discount":null,"handover":"Mar/Apr 2027","view":"","furnished":"","rawExcerpt":"Luxury Villa | Numa Reserve, Meydan\n5 Bedrooms + Private Gym Room\nBUA: 8,070 sqft\nAsking: AED 22,000,000\nBelow Market Price"},{"id":4,"role":"SELLER","keyword":"below OP","urgency":"below_market","time":"05:50 PM","title":"Safa Two — 1BR","community":"Sheikh Zayed Road","building":"Safa Two","type":"Apartment","beds":1,"area":776,"price":1600000,"opPrice":null,"discount":null,"handover":"Q2 2027","view":"","furnished":""},{"id":7,"role":"SELLER","keyword":"distress","urgency":"distress","time":"08:08 PM","title":"Riverside Crescent — 2BR","community":"Sobha Hartland","building":"Riverside Crescent 360","type":"Apartment","beds":2,"area":913,"price":2250000,"opPrice":null,"discount":null,"handover":"2027","view":"Waterfront","furnished":""},{"id":8,"role":"SELLER","keyword":"distress","urgency":"distress","time":"08:25 PM","title":"Society House — 1BR","community":"Downtown","building":"Society House","type":"Apartment","beds":1,"area":752,"price":2950000,"opPrice":3000000,"discount":1.7,"handover":"Q2 2026","view":"Burj Khalifa View","furnished":"Furnished"},{"id":11,"role":"SELLER","keyword":"distress","urgency":"distress","time":"09:15 PM","title":"Hillcrest — 5BR Villa","community":"Dubai Hills","building":"Hillcrest","type":"Villa","beds":5,"area":9445,"price":25000000,"opPrice":null,"discount":null,"handover":"","view":"","furnished":""},{"id":14,"role":"SELLER","keyword":"distress","urgency":"distress","time":"09:09 AM","title":"Azizi Venice — Studios/1BR","community":"Dubai South","building":"Azizi Venice","type":"Apartment","beds":0,"area":370,"price":560000,"opPrice":621000,"discount":9.8,"handover":"Q2 2026","view":"Lagoon View","furnished":""},{"id":15,"role":"SELLER","keyword":"distress","urgency":"distress","time":"03:36 PM","title":"DAMAC Towers — 3BR","community":"Business Bay","building":"DAMAC Towers by Paramount","type":"Apartment","beds":3,"area":1747,"price":2550000,"opPrice":3550000,"discount":28.2,"handover":"Ready","view":"","furnished":"Furnished"},{"id":16,"role":"SELLER","keyword":"distress","urgency":"distress","time":"01:46 PM","title":"Azizi Aura — 2BR","community":"Jebel Ali","building":"Azizi Aura","type":"Apartment","beds":2,"area":1152,"price":1400000,"opPrice":1600000,"discount":12.5,"handover":"Ready","view":"Pool & Open","furnished":""},{"id":17,"role":"SELLER","keyword":"distress","urgency":"distress","time":"03:19 PM","title":"City Walk Bldg 19 — 2BR","community":"City Walk","building":"Building 19","type":"Apartment","beds":2,"area":1764,"price":6200000,"opPrice":7000000,"discount":11.4,"handover":"Ready","view":"Downtown View","furnished":"Furnished"},{"id":19,"role":"SELLER","keyword":"distress","urgency":"distress","time":"05:13 PM","title":"Marriott Residences — 1BR","community":"Business Bay","building":"Marriott Residences (West Five)","type":"Apartment","beds":1,"area":705,"price":1490000,"opPrice":1560000,"discount":4.5,"handover":"Ready","view":"Burj View","furnished":"Unfurnished"},{"id":20,"role":"SELLER","keyword":"distress","urgency":"distress","time":"01:30 PM","title":"Seapoint T2 — 2BR Fl.17","community":"Emaar Beachfront","building":"Seapoint Tower 2","type":"Apartment","beds":2,"area":1471,"price":5482343,"opPrice":5770888,"discount":5.0,"handover":"","view":"","furnished":""},{"id":23,"role":"SELLER","keyword":"distress","urgency":"distress","time":"01:30 PM","title":"Seapoint T2 — 2BR Fl.37","community":"Emaar Beachfront","building":"Seapoint Tower 2","type":"Apartment","beds":2,"area":1471,"price":5681843,"opPrice":5980888,"discount":5.0,"handover":"","view":"","furnished":""},{"id":24,"role":"SELLER","keyword":"distress","urgency":"distress","time":"01:30 PM","title":"Seapoint T2 — 2BR Fl.37","community":"Emaar Beachfront","building":"Seapoint Tower 2","type":"Apartment","beds":2,"area":1107,"price":4643493,"opPrice":4887888,"discount":5.0,"handover":"","view":"","furnished":""},{"id":27,"role":"SELLER","keyword":"distress","urgency":"distress","time":"01:30 PM","title":"DIC — Industrial Plot","community":"Dubai Industrial City","building":"","type":"Plot","beds":null,"area":230703,"price":25000000,"opPrice":30000000,"discount":16.7,"handover":"","view":"","furnished":""},{"id":29,"role":"SELLER","keyword":"distress","urgency":"distress","time":"02:04 PM","title":"Binghatti Elite — Studio","community":"JVT","building":"Binghatti Elite","type":"Studio","beds":0,"area":375,"price":599000,"opPrice":615000,"discount":2.6,"handover":"Q4 2026","view":"","furnished":""},{"id":30,"role":"SELLER","keyword":"below market","urgency":"below_market","time":"07:38 PM","title":"Marriott Residences — 1BR","community":"Business Bay","building":"Marriott Residences (West Five)","type":"Apartment","beds":1,"area":702,"price":1490000,"opPrice":1560000,"discount":4.5,"handover":"Ready","view":"Burj View","furnished":"Unfurnished"},{"id":31,"role":"SELLER","keyword":"distress","urgency":"distress","time":"10:02 PM","title":"Al Quoz — Warehouse Compound","community":"Al Quoz","building":"","type":"Commercial","beds":null,"area":13856,"price":8500000,"opPrice":null,"discount":null,"handover":"Ready","view":"","furnished":""},{"id":32,"role":"SELLER","keyword":"distress","urgency":"distress","time":"07:06 PM","title":"Sobha Orbis — 1BR","community":"Motor City","building":"Sobha Orbis","type":"Apartment","beds":1,"area":537,"price":975000,"opPrice":981000,"discount":0.6,"handover":"","view":"","furnished":""},{"id":33,"role":"SELLER","keyword":"distress","urgency":"distress","time":"07:16 PM","title":"Como Residences — 4BR","community":"Palm Jumeirah","building":"Como Residences","type":"Apartment","beds":4,"area":9369,"price":49000000,"opPrice":55814512,"discount":12.2,"handover":"Q3 2028","view":"360° Sea View","furnished":""},{"id":34,"role":"SELLER","keyword":"distress","urgency":"distress","time":"07:23 PM","title":"Sea Point — 2BR","community":"Emaar Beachfront","building":"Sea Point","type":"Apartment","beds":2,"area":1453,"price":6850000,"opPrice":6810888,"discount":null,"handover":"","view":"Full Palm Sea View","furnished":""},{"id":36,"role":"SELLER","keyword":"distress","urgency":"distress","time":"08:53 PM","title":"Address Zabeel — 2BR","community":"Zabeel","building":"Address Residences Zabeel","type":"Apartment","beds":2,"area":1408,"price":4150000,"opPrice":null,"discount":null,"handover":"","view":"Full Burj Khalifa View","furnished":""},{"id":39,"role":"SELLER","keyword":"distress","urgency":"distress","time":"04:53 PM","title":"Azizi Venice 10B — Studio","community":"Dubai South","building":"Azizi Venice 10B","type":"Studio","beds":0,"area":347,"price":550000,"opPrice":750000,"discount":26.7,"handover":"","view":"Full Lagoon View","furnished":""},{"id":43,"role":"SELLER","keyword":"motivated seller","urgency":"motivated","time":"08:51 PM","title":"Velora 2, The Valley — 3BR TH","community":"The Valley","building":"Velora 2","type":"Townhouse","beds":3,"area":2460,"price":3400000,"opPrice":null,"discount":null,"handover":"Q3 2028","view":"Central Park View","furnished":""},{"id":56,"role":"SELLER","keyword":"distress","urgency":"distress","time":"01:27 PM","title":"Bay Grove — 2BR","community":"Dubai Islands","building":"Bay Grove B4","type":"Apartment","beds":2,"area":1632,"price":4107000,"opPrice":null,"discount":null,"handover":"","view":"Full Sea View","furnished":""},{"id":60,"role":"SELLER","keyword":"urgent sale","urgency":"urgent","time":"04:36 PM","title":"Parkside Views — 3BR+Store","community":"Dubai Hills","building":"Parkside Views","type":"Apartment","beds":3,"area":1676,"price":4300000,"opPrice":null,"discount":null,"handover":"Q3 2027","view":"Park & Pool View","furnished":""},{"id":61,"role":"SELLER","keyword":"distress","urgency":"distress","time":"06:25 PM","title":"Marina Pearl — 1BR","community":"Dubai Marina","building":"Marina Pearl","type":"Apartment","beds":1,"area":902,"price":980000,"opPrice":null,"discount":null,"handover":"Ready","view":"","furnished":""}];
+
+const TODAY_BUYERS = [{"id":2,"role":"BUYER","time":"10:22 AM","title":"Institutional Buyer — $20M+ Assets","community":"Multi-region","rawExcerpt":"Looking for distressed/motivated seller assets\nUAE, Bahrain, Kuwait, Qatar, Saudi, Oman, Turkey, Greece, Cyprus\nPremium Land, Residential, Office, Retail, Hotels\nMin $20M (AED 65M) | Below market value"},{"id":5,"role":"BUYER","time":"05:55 PM","title":"Studio/1BR — Sobha & Emaar Only","community":"Flexible","rawExcerpt":"Serious buyer | Below OP only\nSobha & Emaar projects\nStudio or 1BR"},{"id":13,"role":"BUYER","time":"08:34 AM","title":"3BR Downtown/Business Bay — AED 5M Cash","community":"Downtown / Business Bay","rawExcerpt":"Cash buyer | AED 5M budget\n3BR Downtown or Business Bay\nDistress deals only"},{"id":37,"role":"BUYER","time":"09:56 PM","title":"Al Habtoor Tower 1BR — AED 2.79M","community":"Business Bay","rawExcerpt":"Al Habtoor Tower | 1BR | 973 sqft\nOwner paid AED 1M | Buyer continues payments\nBelow-market distressed price | Handover EOY"}];
+
+// Seed today
+addDayDeals('2026-03-03', TODAY_DEALS, TODAY_BUYERS);
+
+// ═══════════════════════════════════════════════════════════════
+// APP STATE
+// ═══════════════════════════════════════════════════════════════
+let state = {
+  selectedDate: 'all',
+  currency: 'AED',
+  typeFilter: 'All',
+  urgencyFilter: 'All',
+  expandedComm: null,
+  showBuyers: false,
+  showAdmin: false,
+  adminUnlocked: false,
+};
+
+// Secret admin access: type "viren" anywhere on the page to unlock
+let keyBuffer = '';
+document.addEventListener('keydown', (e) => {
+  keyBuffer += e.key.toLowerCase();
+  if (keyBuffer.length > 10) keyBuffer = keyBuffer.slice(-10);
+  if (keyBuffer.includes('viren')) {
+    keyBuffer = '';
+    if (!state.adminUnlocked) {
+      state.adminUnlocked = true;
+      state.showAdmin = true;
+      render();
+    }
+  }
+});
+
+const WA_SVG = `<svg width="WW" height="WW" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>`;
+const waIcon = (s) => WA_SVG.replace(/WW/g, s);
+const PHONE_SVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`;
+
+const urgencyMeta = {
+  distress:{label:"DISTRESS",color:"#FF3B30",bg:"rgba(255,59,48,0.1)",border:"rgba(255,59,48,0.25)"},
+  below_market:{label:"BELOW MARKET",color:"#FF9500",bg:"rgba(255,149,0,0.1)",border:"rgba(255,149,0,0.25)"},
+  urgent:{label:"URGENT",color:"#FF2D55",bg:"rgba(255,45,85,0.1)",border:"rgba(255,45,85,0.25)"},
+  motivated:{label:"MOTIVATED",color:"#FFD60A",bg:"rgba(255,214,10,0.1)",border:"rgba(255,214,10,0.25)"},
+  standard:{label:"DEAL",color:"#00FF88",bg:"rgba(0,255,136,0.1)",border:"rgba(0,255,136,0.25)"}
+};
+
+function fmtShort(n, c) {
+  if (!n) return '—';
+  const v = c === 'USD' ? n * 0.2723 : n;
+  const p = c === 'USD' ? '$' : '';
+  if (v >= 1e6) return p + (v/1e6).toFixed(1) + 'M';
+  if (v >= 1e3) return p + (v/1e3).toFixed(0) + 'K';
+  return p + v.toLocaleString();
+}
+
+function getDeals() {
+  const all = loadAllDeals();
+  if (state.selectedDate === 'all') {
+    const merged = [];
+    const seen = new Set();
+    Object.entries(all).sort((a,b) => b[0].localeCompare(a[0])).forEach(([date, deals]) => {
+      deals.forEach(d => {
+        const key = `${d.community}|${d.title}|${d.price}`;
+        if (!seen.has(key)) { seen.add(key); merged.push({...d, date}); }
+      });
+    });
+    return merged;
+  }
+  return (all[state.selectedDate] || []).map(d => ({...d, date: state.selectedDate}));
+}
+
+function getBuyers() {
+  const all = loadAllBuyers();
+  if (state.selectedDate === 'all') {
+    const merged = [];
+    Object.values(all).forEach(b => merged.push(...b));
+    return merged;
+  }
+  return all[state.selectedDate] || [];
+}
+
+function render() {
+  const deals = getDeals();
+  const buyers = getBuyers();
+  const dates = getDateKeys();
+  const c = state.currency;
+
+  // Filter
+  let filtered = [...deals];
+  if (state.typeFilter !== 'All') {
+    if (state.typeFilter === 'Studio') filtered = filtered.filter(d => d.beds === 0);
+    else filtered = filtered.filter(d => d.type === state.typeFilter);
+  }
+  if (state.urgencyFilter !== 'All') filtered = filtered.filter(d => d.urgency === state.urgencyFilter);
+
+  // Group by community
+  const groups = {};
+  filtered.forEach(d => { if (!groups[d.community]) groups[d.community] = []; groups[d.community].push(d); });
+  const sorted = Object.entries(groups).sort((a,b) => b[1].length - a[1].length);
+
+  // Stats
+  const totalVal = filtered.reduce((a,d) => a + (d.price||0), 0);
+  const disc = filtered.filter(d => d.discount && d.discount > 2);
+  const avgDisc = disc.length ? (disc.reduce((a,d) => a + d.discount, 0) / disc.length).toFixed(1) : '0';
+
+  const types = ['All','Apartment','Villa','Townhouse','Studio','Commercial','Plot'];
+  const urgencies = ['All','distress','below_market','urgent','motivated'];
+
+  document.getElementById('app').innerHTML = `
+    <!-- HEADER -->
+    <div style="margin-bottom:28px;animation:fadeIn .4s ease">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+        <div style="width:10px;height:10px;border-radius:50%;background:var(--green);box-shadow:0 0 12px rgba(0,255,136,.5);animation:pulse 2s ease infinite"></div>
+        <span class="mono" style="font-size:11px;letter-spacing:.15em;color:var(--green);text-transform:uppercase">
+          Live Digest · ${state.selectedDate === 'all' ? dates.length + ' Day(s)' : state.selectedDate} · ${filtered.length} Deals
+        </span>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px">
+        <h1 style="font-family:var(--sans);font-size:clamp(26px,5vw,38px);font-weight:800;letter-spacing:-.03em;line-height:1.1">
+          <span>DATA</span><span style="color:var(--green)">DXB</span>
+          <span style="display:block;font-size:clamp(12px,2vw,15px);font-weight:400;color:var(--dim);letter-spacing:.08em;margin-top:4px">DISTRESS & BELOW-MARKET DEALS</span>
+        </h1>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <a href="https://whatsapp.com/channel/0029Vb7gUWy9sBID7CdKJr0A" target="_blank" style="display:flex;align-items:center;gap:7px;padding:9px 18px;border-radius:8px;background:linear-gradient(135deg,#25D366,#128C7E);color:#fff;font-family:var(--sans);font-size:13px;font-weight:600;box-shadow:0 2px 12px rgba(37,211,102,.3)">
+            ${waIcon('15')} Join Channel
+          </a>
+          <a href="tel:+971585877330" style="display:flex;align-items:center;gap:7px;padding:9px 18px;border-radius:8px;background:rgba(255,255,255,.06);color:var(--fg);font-family:var(--sans);font-size:13px;font-weight:600;border:1px solid rgba(255,255,255,.1)">
+            ${PHONE_SVG} Call Viren
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- DATE TABS -->
+    <div class="date-tabs">
+      <div class="date-tab ${state.selectedDate==='all'?'active':''}" onclick="state.selectedDate='all';render()">All Days (${dates.length})</div>
+      ${dates.map(d => `<div class="date-tab ${state.selectedDate===d?'active':''}" onclick="state.selectedDate='${d}';render()">${d}</div>`).join('')}
+    </div>
+
+    <!-- STATS -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:24px">
+      ${[
+        {l:'Total Deals',v:filtered.length,color:'var(--fg)'},
+        {l:'Total Value',v:fmtShort(totalVal,c),color:'var(--green)'},
+        {l:'Avg Discount',v:avgDisc+'%',color:'var(--orange)'},
+        {l:'Buyers',v:buyers.length,color:'var(--blue)'},
+        {l:'Communities',v:sorted.length,color:'var(--yellow)'},
+      ].map((s,i) => `
+        <div style="padding:14px 18px;border-radius:10px;background:var(--card);border:1px solid var(--cardborder);animation:fadeIn .4s ease ${i*.06}s both">
+          <div class="mono" style="font-size:10px;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;margin-bottom:5px">${s.l}</div>
+          <div style="font-family:var(--sans);font-size:22px;font-weight:800;color:${s.color};line-height:1">${s.v}</div>
+        </div>
+      `).join('')}
+    </div>
+
+    <!-- FILTERS -->
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center;justify-content:space-between">
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        ${types.map(t => `<button class="fbtn" onclick="state.typeFilter='${t}';render()" style="padding:5px 14px;border-radius:20px;font-size:12px;font-weight:500;font-family:var(--sans);background:${state.typeFilter===t?'rgba(0,255,136,.1)':'var(--card)'};color:${state.typeFilter===t?'var(--green)':'var(--dim)'};border:1px solid ${state.typeFilter===t?'rgba(0,255,136,.25)':'var(--cardborder)'}">${t}</button>`).join('')}
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <div style="display:flex;border-radius:6px;border:1px solid rgba(255,255,255,.06);overflow:hidden">
+          ${['AED','USD'].map(cu => `<button class="fbtn" onclick="state.currency='${cu}';render()" style="padding:5px 12px;background:${c===cu?'rgba(255,255,255,.07)':'transparent'};color:${c===cu?'var(--fg)':'var(--dim)'};font-family:var(--mono);font-size:11px;border:none">${cu}</button>`).join('')}
+        </div>
+        <button class="fbtn" onclick="state.showBuyers=!state.showBuyers;render()" style="padding:5px 14px;border-radius:20px;font-size:12px;font-family:var(--sans);background:${state.showBuyers?'rgba(90,200,250,.1)':'var(--card)'};color:${state.showBuyers?'var(--blue)':'var(--dim)'};border:1px solid ${state.showBuyers?'rgba(90,200,250,.25)':'var(--cardborder)'}">
+          ${state.showBuyers?'Hide':'Show'} Buyers
+        </button>
+      </div>
+    </div>
+
+    <!-- URGENCY FILTERS -->
+    <div style="display:flex;gap:5px;margin-bottom:22px;flex-wrap:wrap">
+      ${urgencies.map(u => {
+        const m = u==='All' ? {label:'All',color:'var(--fg)'} : urgencyMeta[u];
+        return `<button class="fbtn" onclick="state.urgencyFilter='${u}';render()" style="padding:4px 12px;border-radius:16px;font-size:11px;font-weight:600;font-family:var(--mono);letter-spacing:.04em;background:${state.urgencyFilter===u?m.color+'15':'transparent'};color:${state.urgencyFilter===u?m.color:'rgba(255,255,255,.25)'};border:1px solid ${state.urgencyFilter===u?m.color+'40':'var(--line)'}">${m.label}</button>`;
+      }).join('')}
+    </div>
+
+    <!-- BUYERS -->
+    ${state.showBuyers ? `
+      <div style="margin-bottom:24px;animation:fadeIn .3s ease">
+        <div class="mono" style="font-size:11px;color:var(--blue);letter-spacing:.1em;text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:8px">
+          <div style="width:8px;height:8px;border-radius:50%;background:var(--blue)"></div> Active Buyer Requests
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px">
+          ${buyers.map((b,i) => `
+            <div style="padding:14px 16px;border-radius:10px;background:rgba(90,200,250,.03);border:1px solid rgba(90,200,250,.1);animation:fadeIn .3s ease ${i*.05}s both">
+              <div style="font-family:var(--sans);font-size:13px;font-weight:600;margin-bottom:4px">${b.title}</div>
+              <div style="font-family:var(--sans);font-size:12px;color:var(--dim);line-height:1.4;white-space:pre-line">${b.rawExcerpt}</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    ` : ''}
+
+    <!-- COMMUNITIES -->
+    ${sorted.map(([comm, items], ci) => {
+      const prices = items.filter(d=>d.price).map(d=>d.price);
+      const minP = prices.length ? fmtShort(Math.min(...prices),c) : '—';
+      const maxP = prices.length ? fmtShort(Math.max(...prices),c) : '—';
+      const isOpen = state.expandedComm === comm;
+      const dots = [...new Set(items.map(d=>d.urgency))].map(u => {
+        const m = urgencyMeta[u]||urgencyMeta.standard;
+        return `<div style="width:6px;height:6px;border-radius:50%;background:${m.color}"></div>`;
+      }).join('');
+
+      return `
+        <div style="margin-bottom:4px;animation:fadeIn .3s ease ${ci*.03}s both">
+          <div class="comm-hdr" onclick="state.expandedComm=state.expandedComm==='${comm}'?null:'${comm}';render()" style="display:flex;align-items:center;justify-content:space-between;padding:13px 20px;border-radius:${isOpen?'10px 10px 0 0':'10px'};cursor:pointer;background:var(--card);border:1px solid var(--cardborder);${isOpen?'border-bottom:none;':''}transition:all .15s">
+            <div style="display:flex;align-items:center;gap:12px">
+              <span style="font-family:var(--sans);font-size:15px;font-weight:700">${comm}</span>
+              <span class="mono" style="font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(0,255,136,.08);color:var(--green)">${items.length}</span>
+              <div style="display:flex;gap:4px">${dots}</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:16px">
+              <span class="mono" style="font-size:12px;color:var(--dim)">${minP} — ${maxP}</span>
+              <span style="color:rgba(255,255,255,.2);font-size:14px;transition:transform .2s;transform:rotate(${isOpen?'180':'0'}deg)">▾</span>
+            </div>
+          </div>
+          ${isOpen ? `
+            <div style="border:1px solid var(--cardborder);border-top:none;border-radius:0 0 10px 10px;overflow:hidden;background:rgba(255,255,255,.01)">
+              <div style="display:grid;grid-template-columns:1fr 110px 90px 70px;gap:12px;padding:8px 20px;font-family:var(--mono);font-size:9px;color:rgba(255,255,255,.2);letter-spacing:.12em;text-transform:uppercase;border-bottom:1px solid var(--line)">
+                <div>Property</div><div style="text-align:right">Price</div><div style="text-align:right">vs OP</div><div></div>
+              </div>
+              ${items.map((d,i) => {
+                const u = urgencyMeta[d.urgency]||urgencyMeta.standard;
+                const waMsg = encodeURIComponent(`Hi Viren, I'm interested in this deal from DataDXB:\n\n${d.title} | ${d.community}${d.price?'\nPrice: AED '+d.price.toLocaleString():''}${d.area&&d.area<100000?'\nSize: '+d.area.toLocaleString()+' sqft':''}${d.discount?'\nDiscount: '+d.discount+'% vs OP':''}\n\nPlease share more details.`);
+                return `
+                  <div class="deal-row" style="padding:14px 20px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:1fr 110px 90px 70px;gap:12px;align-items:center;animation:fadeIn .3s ease ${i*.03}s both;transition:background .15s">
+                    <div>
+                      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">
+                        <span style="padding:2px 8px;border-radius:4px;font-size:9px;font-weight:700;font-family:var(--mono);letter-spacing:.06em;background:${u.bg};color:${u.color};border:1px solid ${u.border}">${u.label}</span>
+                        <span style="font-family:var(--sans);font-size:14px;font-weight:600">${d.title}</span>
+                        ${d.date && state.selectedDate==='all' ? `<span class="mono" style="font-size:9px;color:rgba(255,255,255,.15)">${d.date}</span>` : ''}
+                      </div>
+                      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-family:var(--mono);font-size:11px;color:var(--dim)">
+                        ${d.type!=='Apartment'&&d.type!=='Studio'?`<span style="padding:1px 6px;border-radius:3px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06)">${d.type}</span>`:''}
+                        ${d.area&&d.area<100000?d.area.toLocaleString()+' sqft':''}
+                        ${d.view?'<span>·</span><span>'+d.view+'</span>':''}
+                        ${d.handover?'<span>·</span><span>HO '+d.handover+'</span>':''}
+                        ${d.furnished?'<span>·</span><span>'+d.furnished+'</span>':''}
+                      </div>
+                    </div>
+                    <div style="text-align:right">
+                      <div class="mono" style="font-size:16px;font-weight:700;color:${d.price?'var(--fg)':'rgba(255,255,255,.2)'}">${fmtShort(d.price,c)}</div>
+                      ${d.opPrice&&d.opPrice!==d.price?`<div class="mono" style="font-size:11px;color:rgba(255,255,255,.2);text-decoration:line-through">OP ${fmtShort(d.opPrice,c)}</div>`:''}
+                    </div>
+                    <div style="text-align:right">
+                      ${d.discount&&d.discount>0?`<span class="mono" style="padding:4px 10px;border-radius:6px;font-size:13px;font-weight:700;color:var(--green);background:rgba(0,255,136,.08)">-${d.discount}%</span>`:`<span class="mono" style="color:rgba(255,255,255,.1);font-size:11px">—</span>`}
+                    </div>
+                    <div style="text-align:right">
+                      <a href="https://wa.me/971585877330?text=${waMsg}" target="_blank" style="display:inline-flex;align-items:center;gap:4px;padding:5px 12px;border-radius:6px;background:linear-gradient(135deg,#25D366,#128C7E);color:#fff;font-family:var(--sans);font-size:11px;font-weight:600;box-shadow:0 1px 6px rgba(37,211,102,.2);white-space:nowrap">
+                        ${waIcon('11')} Enquire
+                      </a>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }).join('')}
+
+    <!-- ADMIN: ADD NEW DAY (password protected) -->
+    ${state.adminUnlocked ? `
+      <div style="margin-top:32px">
+        <button class="fbtn" onclick="state.showAdmin=!state.showAdmin;render()" style="padding:8px 16px;border-radius:8px;font-family:var(--mono);font-size:11px;background:rgba(0,255,136,.03);color:rgba(0,255,136,.3);border:1px dashed rgba(0,255,136,.15)">
+          ${state.showAdmin ? '▾ Hide' : '▸ Add New Day'} (Admin)
+        </button>
+      </div>
+      ${state.showAdmin ? `
+        <div class="admin-panel" style="margin-top:8px">
+          <div style="font-family:var(--sans);font-size:13px;font-weight:600;margin-bottom:4px;color:var(--green)">Add New Day's Deals</div>
+          <div class="mono" style="font-size:11px;color:var(--dim);margin-bottom:12px">Paste the JSON array of deals below. Old data is never overwritten.</div>
+          <div style="display:flex;gap:8px;margin-bottom:8px">
+            <input id="admin-date" type="date" value="" style="padding:6px 12px;border-radius:6px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);color:var(--fg);font-family:var(--mono);font-size:12px" />
+          </div>
+          <textarea id="admin-json" placeholder='Paste deals JSON array here...'></textarea>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button class="admin-btn" onclick="importDeals()" style="background:var(--green);color:#000">Import Deals</button>
+            <button class="admin-btn" onclick="exportAll()" style="background:rgba(255,255,255,.06);color:var(--fg)">Export All Data</button>
+            <button class="admin-btn" onclick="state.adminUnlocked=false;state.showAdmin=false;render()" style="background:rgba(255,59,48,.1);color:var(--red)">Lock Admin</button>
+            <span id="admin-msg" class="mono" style="font-size:11px;color:var(--green);align-self:center;margin-left:8px"></span>
+          </div>
+        </div>
+      ` : ''}
+    ` : ''}
+
+    <!-- CTA -->
+    <div style="margin-top:32px;padding:24px 28px;border-radius:12px;background:linear-gradient(135deg,rgba(37,211,102,.06),rgba(18,140,126,.06));border:1px solid rgba(37,211,102,.12);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px">
+      <div>
+        <div style="font-family:var(--sans);font-size:16px;font-weight:700;margin-bottom:3px">Get these deals in real-time</div>
+        <div style="font-family:var(--sans);font-size:12px;color:var(--dim)">Join Viren's WhatsApp channel — first-mover access for HNW investors.</div>
+      </div>
+      <a href="https://whatsapp.com/channel/0029Vb7gUWy9sBID7CdKJr0A" target="_blank" style="padding:10px 24px;border-radius:8px;background:linear-gradient(135deg,#25D366,#128C7E);color:#fff;font-family:var(--sans);font-size:14px;font-weight:700;box-shadow:0 3px 16px rgba(37,211,102,.25);display:flex;align-items:center;gap:8px">
+        ${waIcon('16')} Join Channel
+      </a>
+    </div>
+
+    <!-- FOOTER -->
+    <div style="margin-top:36px;padding-top:18px;border-top:1px solid var(--line);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;font-family:var(--mono);font-size:10px;color:var(--dimmer)">
+      <span>© 2026 DataDXB · Viren · RERA Licensed</span>
+      <span>${dates.length} day(s) stored · ${Object.values(loadAllDeals()).flat().length} total entries</span>
+    </div>
+  `;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ADMIN FUNCTIONS
+// ═══════════════════════════════════════════════════════════════
+function importDeals() {
+  const dateEl = document.getElementById('admin-date');
+  const jsonEl = document.getElementById('admin-json');
+  const msgEl = document.getElementById('admin-msg');
+  if (!dateEl.value) { msgEl.textContent = '⚠ Enter a date'; return; }
+  try {
+    const data = JSON.parse(jsonEl.value);
+    if (!Array.isArray(data)) throw new Error('Must be array');
+    addDayDeals(dateEl.value, data, []);
+    msgEl.textContent = `✓ Imported ${data.length} deals for ${dateEl.value}`;
+    state.selectedDate = dateEl.value;
+    setTimeout(render, 800);
+  } catch(e) {
+    msgEl.textContent = '⚠ Invalid JSON: ' + e.message;
+  }
+}
+
+function exportAll() {
+  const data = { deals: loadAllDeals(), buyers: loadAllBuyers() };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'datadxb-export.json'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// Initial render
+render();
+</script>
+</body>
+</html>
