@@ -65,6 +65,19 @@ a{text-decoration:none}
 .dark-popup .leaflet-popup-close-button { color: #888; }
 #leafletMap { z-index: 1; }
 
+
+.map-tip {
+  background: rgba(0,0,0,.85) !important;
+  color: #fff !important;
+  border: 1px solid rgba(0,255,136,.2) !important;
+  border-radius: 6px !important;
+  font-size: 11px !important;
+  font-family: system-ui !important;
+  padding: 4px 8px !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,.4) !important;
+  white-space: pre-line !important;
+}
+.map-tip::before { border-top-color: rgba(0,0,0,.85) !important; }
 </style>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -274,13 +287,13 @@ function renderMapFilters(deals, buyers) {
     for (var i=0;i<bedOpts.length;i++) {
       var bo = bedOpts[i];
       var active = (state.mapBeds||"all") === bo.v;
-      h += '<button onclick="state.mapBeds=\'' + bo.v + '\';updateLeafletMap();updateMapFiltersOnly()" style="padding:4px 10px;border-radius:14px;font-size:11px;font-family:var(--sans);background:' + (active?'rgba(0,255,136,.12)':'transparent') + ';color:' + (active?'var(--green)':'var(--dim)') + ';border:1px solid ' + (active?'rgba(0,255,136,.3)':'var(--line)') + ';cursor:pointer">' + bo.l + '</button>';
+      h += '<button onclick="state.mapBeds=\'' + bo.v + '\';updateLeafletMap()" style="padding:4px 10px;border-radius:14px;font-size:11px;font-family:var(--sans);background:' + (active?'rgba(0,255,136,.12)':'transparent') + ';color:' + (active?'var(--green)':'var(--dim)') + ';border:1px solid ' + (active?'rgba(0,255,136,.3)':'var(--line)') + ';cursor:pointer">' + bo.l + '</button>';
     }
     h += '</div>';
     h += '<div style="flex:1;min-width:200px;display:flex;align-items:center;gap:8px">';
     h += '<span class="mono" style="font-size:10px;color:var(--dim);letter-spacing:.08em;white-space:nowrap">MAX PRICE</span>';
     h += '<div style="flex:1">';
-    h += '<input type="range" min="' + Math.floor(minP/100000) + '" max="' + Math.ceil(maxP/100000) + '" value="' + Math.ceil(curMax/100000) + '" oninput="state.mapMaxPrice=this.value*100000;clearTimeout(window._mst);window._mst=setTimeout(updateLeafletMap,100)" style="width:100%;accent-color:#00FF88">';
+    h += '<input type="range" min="' + Math.floor(minP/100000) + '" max="' + Math.ceil(maxP/100000) + '" value="' + Math.ceil(curMax/100000) + '" oninput="state.mapMaxPrice=this.value*100000;clearTimeout(window._mst);window._mst=setTimeout(updateLeafletMap,200)" style="width:100%;accent-color:#00FF88">';
     h += '<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--dim);font-family:var(--mono)"><span>' + fmtShort(minP,"AED") + '</span><span>Up to ' + fmtShort(curMax,"AED") + '</span></div>';
     h += '</div></div>';
     h += '<div style="display:flex;align-items:center;gap:6px">';
@@ -289,7 +302,7 @@ function renderMapFilters(deals, buyers) {
     for (var t=0;t<typeOpts.length;t++) {
       var tp = typeOpts[t];
       var active = (state.mapType||"All") === tp;
-      h += '<button onclick="state.mapType=\'' + tp + '\';updateLeafletMap();updateMapFiltersOnly()" style="padding:4px 10px;border-radius:14px;font-size:11px;font-family:var(--sans);background:' + (active?'rgba(0,255,136,.12)':'transparent') + ';color:' + (active?'var(--green)':'var(--dim)') + ';border:1px solid ' + (active?'rgba(0,255,136,.3)':'var(--line)') + ';cursor:pointer">' + tp + '</button>';
+      h += '<button onclick="state.mapType=\'' + tp + '\';updateLeafletMap()" style="padding:4px 10px;border-radius:14px;font-size:11px;font-family:var(--sans);background:' + (active?'rgba(0,255,136,.12)':'transparent') + ';color:' + (active?'var(--green)':'var(--dim)') + ';border:1px solid ' + (active?'rgba(0,255,136,.3)':'var(--line)') + ';cursor:pointer">' + tp + '</button>';
     }
     h += '</div></div>';
   }
@@ -324,6 +337,7 @@ function toggleLeafletMap() {
       wrap.style.display = 'none';
       document.body.appendChild(wrap);
     }
+    // Keep leaflet alive, just hidden
   }
 }
 
@@ -399,41 +413,30 @@ function updateLeafletMap() {
     var coords = COORDS[comm];
     if (!coords) continue;
     
-    var minPrice = items[0].price, maxPrice = items[0].price;
-    for (var j=0;j<items.length;j++) {
-      if (items[j].price < minPrice) minPrice = items[j].price;
-      if (items[j].price > maxPrice) maxPrice = items[j].price;
+    // Use simple circle markers instead of heavy divIcon HTML
+    var r = Math.max(8, Math.min(22, 5 + items.length * 2));
+    var marker = L.circleMarker(coords, {
+      radius: r,
+      fillColor: '#00FF88',
+      fillOpacity: 0.25,
+      color: '#00FF88',
+      weight: 1.5,
+      opacity: 0.8
+    }).addTo(leafletMap);
+    
+    // Tooltip (lightweight, no popup DOM)
+    var minPr = items[0].price, maxPr = items[0].price;
+    for (var j=1;j<items.length;j++) {
+      if (items[j].price < minPr) minPr = items[j].price;
+      if (items[j].price > maxPr) maxPr = items[j].price;
     }
-    var priceLabel = items.length === 1 ? fmtShort(items[0].price, "AED") : fmtShort(minPrice,"AED") + "-" + fmtShort(maxPrice,"AED");
-    var r = Math.max(18, Math.min(40, 14 + items.length * 3));
+    var tip = comm + ' (' + items.length + ')\n' + fmtShort(minPr,'AED');
+    if (items.length > 1) tip += ' - ' + fmtShort(maxPr,'AED');
+    marker.bindTooltip(tip, {permanent: items.length >= 5, direction: 'top', className: 'map-tip', offset: [0, -r]});
     
-    var icon = L.divIcon({
-      className: "",
-      html: '<div style="background:rgba(0,255,136,.9);color:#000;padding:5px 10px;border-radius:8px;font-size:12px;font-weight:800;font-family:system-ui;white-space:nowrap;box-shadow:0 2px 12px rgba(0,255,136,.3);cursor:pointer;text-align:center;line-height:1.3;border:1px solid rgba(255,255,255,.2)">' + items.length + '<br><span style="font-size:9px;font-weight:600;opacity:.7">' + priceLabel + '</span></div>',
-      iconSize: null,
-      iconAnchor: [30, 15]
-    });
-    
-    var popupHtml = '<div style="font-family:system-ui;max-height:280px;overflow-y:auto;min-width:220px">';
-    popupHtml += '<div style="font-weight:800;font-size:14px;margin-bottom:8px;color:#00FF88">' + comm + ' (' + items.length + ' deals)</div>';
-    for (var p=0;p<items.length;p++) {
-      var deal = items[p];
-      var disc = deal.discount ? ' <span style="color:#FF3B30">-' + deal.discount + '%</span>' : '';
-      popupHtml += '<div style="padding:5px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:11px">';
-      popupHtml += '<div style="font-weight:700">' + (deal.title||"").replace(/</g,"&lt;") + '</div>';
-      popupHtml += '<div>AED ' + (deal.price ? deal.price.toLocaleString() : "?") + disc + '</div>';
-      if (deal.area) popupHtml += '<div style="color:#999;font-size:10px">' + deal.area + ' sqft</div>';
-      popupHtml += '</div>';
-    }
-    popupHtml += '</div>';
-    
-    var marker = L.marker(coords, {icon: icon}).addTo(leafletMap);
-    marker.bindPopup(popupHtml, {maxWidth: 300, className: "dark-popup"});
-    marker.on("click", (function(c) {
-      return function() {
-        state.communityFilter = c;
-        render();
-      };
+    // Click to filter
+    marker.on('click', (function(c) {
+      return function() { state.communityFilter = c; state.showMap = false; toggleLeafletMap(); render(); };
     })(comm));
     
     leafletMarkers.push(marker);
@@ -737,7 +740,7 @@ function render() {
 
   renderBuyers(buyers);
   renderMapFilters(filtered, buyers);
-  if (state.showMap) { setTimeout(positionAndInitMap, 150); }
+  if (state.showMap && !leafletMap) { setTimeout(positionAndInitMap, 150); } else if (state.showMap && leafletMap) { var ph=document.getElementById('mapPlaceholder'); var wr=document.getElementById('leafletMapWrap'); if(ph && wr && wr.parentNode!==ph){ph.appendChild(wr);wr.style.display='block'} }
   }
 
 // ===============================================================
