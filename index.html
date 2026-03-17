@@ -75,8 +75,8 @@ a{text-decoration:none}
 
 <div id="app" style="max-width:1100px;margin:0 auto;padding:32px 20px"></div>
 
-<div id="leafletMapWrap" style="display:none;position:fixed;pointer-events:none">
-  <div id="leafletMap" style="height:500px;width:100%;border-radius:12px;border:1px solid rgba(0,255,136,.15);pointer-events:auto"></div>
+<div id="leafletMapWrap" style="display:none">
+  <div id="leafletMap" style="height:450px;width:100%;border-radius:12px;border:1px solid rgba(0,255,136,.15)"></div>
 </div>
 
 <script>
@@ -274,13 +274,13 @@ function renderMapFilters(deals, buyers) {
     for (var i=0;i<bedOpts.length;i++) {
       var bo = bedOpts[i];
       var active = (state.mapBeds||"all") === bo.v;
-      h += '<button onclick="state.mapBeds=\'' + bo.v + '\';updateLeafletMap();render()" style="padding:4px 10px;border-radius:14px;font-size:11px;font-family:var(--sans);background:' + (active?'rgba(0,255,136,.12)':'transparent') + ';color:' + (active?'var(--green)':'var(--dim)') + ';border:1px solid ' + (active?'rgba(0,255,136,.3)':'var(--line)') + ';cursor:pointer">' + bo.l + '</button>';
+      h += '<button onclick="state.mapBeds=\'' + bo.v + '\';updateLeafletMap();updateMapFiltersOnly()" style="padding:4px 10px;border-radius:14px;font-size:11px;font-family:var(--sans);background:' + (active?'rgba(0,255,136,.12)':'transparent') + ';color:' + (active?'var(--green)':'var(--dim)') + ';border:1px solid ' + (active?'rgba(0,255,136,.3)':'var(--line)') + ';cursor:pointer">' + bo.l + '</button>';
     }
     h += '</div>';
     h += '<div style="flex:1;min-width:200px;display:flex;align-items:center;gap:8px">';
     h += '<span class="mono" style="font-size:10px;color:var(--dim);letter-spacing:.08em;white-space:nowrap">MAX PRICE</span>';
     h += '<div style="flex:1">';
-    h += '<input type="range" min="' + Math.floor(minP/100000) + '" max="' + Math.ceil(maxP/100000) + '" value="' + Math.ceil(curMax/100000) + '" oninput="state.mapMaxPrice=this.value*100000;updateLeafletMap();render()" style="width:100%;accent-color:#00FF88">';
+    h += '<input type="range" min="' + Math.floor(minP/100000) + '" max="' + Math.ceil(maxP/100000) + '" value="' + Math.ceil(curMax/100000) + '" oninput="state.mapMaxPrice=this.value*100000;clearTimeout(window._mst);window._mst=setTimeout(updateLeafletMap,100)" style="width:100%;accent-color:#00FF88">';
     h += '<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--dim);font-family:var(--mono)"><span>' + fmtShort(minP,"AED") + '</span><span>Up to ' + fmtShort(curMax,"AED") + '</span></div>';
     h += '</div></div>';
     h += '<div style="display:flex;align-items:center;gap:6px">';
@@ -289,7 +289,7 @@ function renderMapFilters(deals, buyers) {
     for (var t=0;t<typeOpts.length;t++) {
       var tp = typeOpts[t];
       var active = (state.mapType||"All") === tp;
-      h += '<button onclick="state.mapType=\'' + tp + '\';updateLeafletMap();render()" style="padding:4px 10px;border-radius:14px;font-size:11px;font-family:var(--sans);background:' + (active?'rgba(0,255,136,.12)':'transparent') + ';color:' + (active?'var(--green)':'var(--dim)') + ';border:1px solid ' + (active?'rgba(0,255,136,.3)':'var(--line)') + ';cursor:pointer">' + tp + '</button>';
+      h += '<button onclick="state.mapType=\'' + tp + '\';updateLeafletMap();updateMapFiltersOnly()" style="padding:4px 10px;border-radius:14px;font-size:11px;font-family:var(--sans);background:' + (active?'rgba(0,255,136,.12)':'transparent') + ';color:' + (active?'var(--green)':'var(--dim)') + ';border:1px solid ' + (active?'rgba(0,255,136,.3)':'var(--line)') + ';cursor:pointer">' + tp + '</button>';
     }
     h += '</div></div>';
   }
@@ -301,6 +301,18 @@ function renderMapFilters(deals, buyers) {
 var leafletMap = null;
 var leafletMarkers = [];
 
+
+function updateMapFiltersOnly() {
+  // Rebuild just the filter bar without touching the rest of the page
+  var allDeals = getDeals();
+  var buyers = getBuyers();
+  renderMapFilters(allDeals, buyers);
+  // Re-attach placeholder height
+  var ph = document.getElementById("mapPlaceholder");
+  if (ph && state.showMap) ph.style.height = "520px";
+  setTimeout(positionAndInitMap, 50);
+}
+
 function toggleLeafletMap() {
   state.showMap = !state.showMap;
   render();
@@ -308,7 +320,10 @@ function toggleLeafletMap() {
     setTimeout(positionAndInitMap, 150);
   } else {
     var wrap = document.getElementById('leafletMapWrap');
-    if (wrap) wrap.style.display = 'none';
+    if (wrap) {
+      wrap.style.display = 'none';
+      document.body.appendChild(wrap);
+    }
   }
 }
 
@@ -317,19 +332,20 @@ function positionAndInitMap() {
   var wrap = document.getElementById('leafletMapWrap');
   if (!placeholder || !wrap) return;
   
-  // Make placeholder take up space
-  placeholder.style.height = '520px';
-  placeholder.style.marginBottom = '16px';
-  
-  // Position the real map over the placeholder
-  var rect = placeholder.getBoundingClientRect();
+  // Move the map container into the placeholder's position in the DOM
+  if (wrap.parentNode !== placeholder) {
+    placeholder.innerHTML = '';
+    placeholder.appendChild(wrap);
+  }
   wrap.style.display = 'block';
-  wrap.style.position = 'fixed';
-  wrap.style.left = rect.left + 'px';
-  wrap.style.top = rect.top + 'px';
-  wrap.style.width = rect.width + 'px';
-  wrap.style.zIndex = '100';
+  wrap.style.position = 'relative';
+  wrap.style.width = '100%';
+  wrap.style.zIndex = '1';
   wrap.style.pointerEvents = 'auto';
+  wrap.style.marginBottom = '16px';
+  
+  // Remove fixed placeholder height since map is now inside it
+  placeholder.style.height = 'auto';
   
   // Init leaflet if needed
   if (!leafletMap && typeof L !== 'undefined') {
@@ -341,14 +357,6 @@ function positionAndInitMap() {
     updateLeafletMap();
   }
 }
-
-// Reposition map on scroll/resize
-window.addEventListener('scroll', function() {
-  if (state.showMap) positionAndInitMap();
-});
-window.addEventListener('resize', function() {
-  if (state.showMap) positionAndInitMap();
-});
 
 function initAndUpdateMap() {
   if (state.showMap) positionAndInitMap();
@@ -729,7 +737,7 @@ function render() {
 
   renderBuyers(buyers);
   renderMapFilters(filtered, buyers);
-  if (state.showMap) { var ph = document.getElementById("mapPlaceholder"); if (ph) ph.style.height = "520px"; setTimeout(positionAndInitMap, 100); }
+  if (state.showMap) { setTimeout(positionAndInitMap, 150); }
   }
 
 // ===============================================================
