@@ -84,7 +84,7 @@ a{text-decoration:none}
 </head>
 <body style="margin:0;background:#0a0a0f;color:#fff">
 
-<div id="loginGate" style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0a0a0f;padding:20px;position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999">
+<div id="loginGate" style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:rgba(10,10,15,.25);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);padding:20px;position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999">
   <div style="max-width:400px;width:100%;text-align:center">
     <h1 style="font-family:'Outfit',sans-serif;font-size:clamp(28px,5vw,42px);font-weight:800;letter-spacing:-.03em;margin-bottom:8px">
       <span style="color:#fff">DATA</span><span style="color:#00FF88">DXB</span>
@@ -125,7 +125,7 @@ function checkPwd() {
   var pwd = document.getElementById('pwdInput').value;
   if (pwd === '2802') {
     document.getElementById('loginGate').style.display = 'none';
-    document.getElementById('appWrap').style.display = 'block';
+    document.getElementById('appWrap').style.pointerEvents = 'auto';
     sessionStorage.setItem('datadxb_auth', '1');
   } else {
     document.getElementById('pwdError').style.display = 'block';
@@ -136,12 +136,12 @@ function checkPwd() {
 if (sessionStorage.getItem('datadxb_auth') === '1') {
   document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('loginGate').style.display = 'none';
-    document.getElementById('appWrap').style.display = 'block';
+    document.getElementById('appWrap').style.pointerEvents = 'auto';
   });
 }
 </script>
 
-<div id="appWrap" style="display:none">
+<div id="appWrap" style="pointer-events:none">
 
 <div class="grid-bg"></div>
 <div class="top-line"></div>
