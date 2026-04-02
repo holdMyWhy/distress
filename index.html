@@ -78,6 +78,14 @@ a{text-decoration:none}
   white-space: pre-line !important;
 }
 .map-tip::before { border-top-color: rgba(0,0,0,.85) !important; }
+
+@keyframes tickerScroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.ticker-track:hover { animation-play-state: paused; }
+.ticker-track.dragging { animation: none !important; cursor: grabbing !important; }
+.ticker-track { cursor: grab; }
 </style>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -537,6 +545,97 @@ function renderBuyers(buyers) {
 }
 
 
+function renderDashboard(deals, buyers) {
+  var active = deals.filter(function(d){ return d.price && d.urgency !== 'sold'; });
+  var discounted = active.filter(function(d){ return d.discount && d.discount > 3; })
+    .sort(function(a,b){ return b.discount - a.discount; }).slice(0, 15);
+  var bands = [
+    {label:'Under 1M',min:0,max:1e6,count:0,color:'#00FF88',filter:'u1m'},
+    {label:'1-3M',min:1e6,max:3e6,count:0,color:'#5AC8FA',filter:'1-3m'},
+    {label:'3-5M',min:3e6,max:5e6,count:0,color:'#FF9500',filter:'3-5m'},
+    {label:'5-10M',min:5e6,max:1e7,count:0,color:'#FF3B30',filter:'5-10m'},
+    {label:'10M+',min:1e7,max:1e12,count:0,color:'#AF52DE',filter:'10m+'}
+  ];
+  for(var i=0;i<active.length;i++){for(var b=0;b<bands.length;b++){if(active[i].price>=bands[b].min&&active[i].price<bands[b].max){bands[b].count++;break;}}}
+  var maxB=Math.max.apply(null,bands.map(function(b){return b.count}));
+  var dates={};for(var i=0;i<active.length;i++){var dt=active[i].date||'';if(!dates[dt])dates[dt]=[];dates[dt].push(active[i]);}
+  var sortedDates=Object.keys(dates).sort().reverse().slice(0,3);
+  var latestCount=0;for(var i=0;i<sortedDates.length;i++)latestCount+=dates[sortedDates[i]].length;
+  var commC={};for(var i=0;i<active.length;i++){var c=active[i].community||'';commC[c]=(commC[c]||0)+1;}
+  var topC=Object.entries(commC).sort(function(a,b){return b[1]-a[1]}).slice(0,8);
+  var h='';
+  h+='<div style="margin-bottom:24px">';
+  // Stats row
+  h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:20px">';
+  h+='<div style="padding:16px;border-radius:10px;background:rgba(0,255,136,.06);border:1px solid rgba(0,255,136,.12);text-align:center"><div style="font-family:var(--mono);font-size:28px;font-weight:800;color:#00FF88">'+active.length+'</div><div style="font-family:var(--sans);font-size:11px;color:var(--dim);margin-top:2px">Active Deals</div></div>';
+  h+='<div style="padding:16px;border-radius:10px;background:rgba(90,200,250,.06);border:1px solid rgba(90,200,250,.12);text-align:center"><div style="font-family:var(--mono);font-size:28px;font-weight:800;color:#5AC8FA">'+buyers.length+'</div><div style="font-family:var(--sans);font-size:11px;color:var(--dim);margin-top:2px">Active Buyers</div></div>';
+  h+='<div style="padding:16px;border-radius:10px;background:rgba(255,149,0,.06);border:1px solid rgba(255,149,0,.12);text-align:center"><div style="font-family:var(--mono);font-size:28px;font-weight:800;color:#FF9500">'+discounted.length+'</div><div style="font-family:var(--sans);font-size:11px;color:var(--dim);margin-top:2px">Below OP</div></div>';
+  h+='<div style="padding:16px;border-radius:10px;background:rgba(175,82,222,.06);border:1px solid rgba(175,82,222,.12);text-align:center"><div style="font-family:var(--mono);font-size:28px;font-weight:800;color:#AF52DE">'+latestCount+'</div><div style="font-family:var(--sans);font-size:11px;color:var(--dim);margin-top:2px">Last 3 Days</div></div>';
+  h+='</div>';
+
+  // TICKER - Bloomberg style
+  if(discounted.length>0){
+    h+='<div style="margin-bottom:20px">';
+    h+='<div style="font-family:var(--sans);font-size:14px;font-weight:700;color:#fff;margin-bottom:10px">Biggest Price Drops</div>';
+    h+='<div style="overflow:hidden;border-radius:10px;background:var(--card);border:1px solid var(--cardborder);padding:12px 0;position:relative">';
+    // Fade edges
+    h+='<div style="position:absolute;left:0;top:0;bottom:0;width:40px;background:linear-gradient(90deg,var(--card),transparent);z-index:2;pointer-events:none"></div>';
+    h+='<div style="position:absolute;right:0;top:0;bottom:0;width:40px;background:linear-gradient(270deg,var(--card),transparent);z-index:2;pointer-events:none"></div>';
+    // Ticker track - duplicated for seamless loop
+    var tickerSpeed = Math.max(12, discounted.length * 2);
+    h+='<div class="ticker-track" style="display:flex;gap:24px;animation:tickerScroll '+tickerSpeed+'s linear infinite;white-space:nowrap;padding:0 20px">';
+    // Render items twice for seamless loop
+    for(var rep=0;rep<2;rep++){
+      for(var i=0;i<discounted.length;i++){
+        var d=discounted[i];var bl=d.beds===0?"Studio":(d.beds?d.beds+"BR":"");
+        h+='<div class="ticker-item" style="display:inline-flex;align-items:center;gap:12px;flex-shrink:0;cursor:pointer;padding:4px 0" onclick="state.communityFilter=\''+((d.community||'').replace(/'/g,"\\'"))+'\';render()">';
+        h+='<span style="font-family:var(--mono);font-size:13px;font-weight:800;color:#FF3B30;min-width:42px">-'+d.discount+'%</span>';
+        h+='<span style="font-family:var(--sans);font-size:12px;font-weight:600;color:#fff">'+(d.building||'')+'</span>';
+        h+='<span style="font-family:var(--sans);font-size:10px;color:var(--dim)">'+bl+'</span>';
+        h+='<span style="font-family:var(--mono);font-size:12px;font-weight:700;color:#00FF88">'+fmtShort(d.price,"AED")+'</span>';
+        if(d.opPrice)h+='<span style="font-family:var(--mono);font-size:10px;color:var(--dim);text-decoration:line-through">'+fmtShort(d.opPrice,"AED")+'</span>';
+        h+='<span style="color:rgba(255,255,255,.1);font-size:10px">|</span>';
+        h+='</div>';
+      }
+    }
+    h+='</div></div></div>';
+  }
+
+  // Price Distribution + Top Areas
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">';
+  
+  // Price Distribution with clickable bands
+  h+='<div style="padding:16px;border-radius:10px;background:var(--card);border:1px solid var(--cardborder)"><div style="font-family:var(--sans);font-size:13px;font-weight:700;color:#fff;margin-bottom:12px">Price Distribution</div>';
+  for(var b=0;b<bands.length;b++){
+    var pct=maxB>0?(bands[b].count/maxB*100):0;
+    h+='<div style="margin-bottom:8px;cursor:pointer" onclick="state.priceBand=\''+bands[b].filter+'\';render()">';
+    h+='<div style="display:flex;justify-content:space-between;margin-bottom:3px">';
+    h+='<span style="font-family:var(--mono);font-size:10px;color:'+(state.priceBand===bands[b].filter?bands[b].color:'var(--dim)')+';font-weight:'+(state.priceBand===bands[b].filter?'700':'400')+'">'+bands[b].label+'</span>';
+    h+='<span style="font-family:var(--mono);font-size:10px;font-weight:700;color:'+bands[b].color+'">'+bands[b].count+'</span>';
+    h+='</div>';
+    h+='<div style="height:6px;border-radius:3px;background:rgba(255,255,255,.04)"><div style="height:100%;border-radius:3px;background:'+bands[b].color+';width:'+pct+'%"></div></div></div>';
+  }
+  if(state.priceBand){h+='<div onclick="state.priceBand=null;render()" style="font-family:var(--mono);font-size:9px;color:var(--dim);cursor:pointer;text-align:center;margin-top:4px">Clear filter &times;</div>';}
+  h+='</div>';
+  
+  // Top Areas with clickable communities
+  h+='<div style="padding:16px;border-radius:10px;background:var(--card);border:1px solid var(--cardborder)"><div style="font-family:var(--sans);font-size:13px;font-weight:700;color:#fff;margin-bottom:12px">Top Areas</div>';
+  for(var c=0;c<topC.length;c++){
+    var cpct=topC[0][1]>0?(topC[c][1]/topC[0][1]*100):0;
+    var isActive=state.communityFilter===topC[c][0];
+    h+='<div style="margin-bottom:8px;cursor:pointer" onclick="state.communityFilter='+(isActive?'null':'\''+topC[c][0].replace(/'/g,"\\'")+'\'')+';render()">';
+    h+='<div style="display:flex;justify-content:space-between;margin-bottom:3px">';
+    h+='<span style="font-family:var(--sans);font-size:10px;color:'+(isActive?'#5AC8FA':'var(--dim)')+';font-weight:'+(isActive?'700':'400')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px">'+topC[c][0]+'</span>';
+    h+='<span style="font-family:var(--mono);font-size:10px;font-weight:700;color:#5AC8FA">'+topC[c][1]+'</span>';
+    h+='</div>';
+    h+='<div style="height:6px;border-radius:3px;background:rgba(255,255,255,.04)"><div style="height:100%;border-radius:3px;background:#5AC8FA;opacity:'+(isActive?'0.8':'0.4')+';width:'+cpct+'%"></div></div></div>';
+  }
+  if(state.communityFilter){h+='<div onclick="state.communityFilter=null;render()" style="font-family:var(--mono);font-size:9px;color:var(--dim);cursor:pointer;text-align:center;margin-top:4px">Clear filter &times;</div>';}
+  h+='</div></div></div>';
+  return h;
+}
+
+
 function render() {
   const deals = getDeals();
   const buyers = getBuyers();
@@ -545,7 +644,17 @@ function render() {
 
   // Filter
   let filtered = [...deals];
-  if (state.typeFilter !== 'All') {
+  
+  // Price band filter from dashboard
+  if (state.priceBand) {
+    var pb = state.priceBand;
+    if (pb === 'u1m') filtered = filtered.filter(d => d.price && d.price < 1e6);
+    else if (pb === '1-3m') filtered = filtered.filter(d => d.price >= 1e6 && d.price < 3e6);
+    else if (pb === '3-5m') filtered = filtered.filter(d => d.price >= 3e6 && d.price < 5e6);
+    else if (pb === '5-10m') filtered = filtered.filter(d => d.price >= 5e6 && d.price < 1e7);
+    else if (pb === '10m+') filtered = filtered.filter(d => d.price >= 1e7);
+  }
+if (state.typeFilter !== 'All') {
     if (state.typeFilter === 'Studio') filtered = filtered.filter(d => d.beds === 0);
     else filtered = filtered.filter(d => d.type === state.typeFilter);
   }
@@ -611,31 +720,8 @@ function render() {
       ${dates.map(d => `<div class="date-tab ${state.selectedDate===d?'active':''}" onclick="state.selectedDate='${d}';render()">${d}</div>`).join('')}
     </div>
 
-    <!-- MARKET SIGNAL BANNER -->
-    <div style="margin-bottom:20px;padding:20px 24px;border-radius:12px;background:linear-gradient(135deg,rgba(90,200,250,.06),rgba(0,255,136,.04));border:1px solid rgba(90,200,250,.12);animation:fadeIn .4s ease">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px">
-        <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
-          <div style="text-align:center">
-            <div style="font-family:var(--sans);font-size:36px;font-weight:900;color:var(--blue);line-height:1">${buyers.length}</div>
-            <div class="mono" style="font-size:10px;color:var(--blue);letter-spacing:.1em;text-transform:uppercase;margin-top:2px">Buyers</div>
-          </div>
-          <div style="font-family:var(--sans);font-size:20px;color:var(--dimmer)">vs</div>
-          <div style="text-align:center">
-            <div style="font-family:var(--sans);font-size:36px;font-weight:900;color:#FF3B30;line-height:1">${filtered.length}</div>
-            <div class="mono" style="font-size:10px;color:#FF3B30;letter-spacing:.1em;text-transform:uppercase;margin-top:2px">Sellers</div>
-          </div>
-        </div>
-        <div style="flex:1;min-width:200px">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-            <div style="font-family:var(--sans);font-size:15px;font-weight:700;color:var(--fg)">${(buyers.length/Math.max(filtered.length,1)).toFixed(1)}x more buyers than sellers</div>
-          </div>
-          <div style="height:8px;border-radius:4px;background:rgba(255,255,255,.06);overflow:hidden">
-            <div style="height:100%;width:${Math.min(buyers.length/(buyers.length+filtered.length)*100,100)}%;background:linear-gradient(90deg,var(--blue),#25D366);border-radius:4px"></div>
-          </div>
-          <div class="mono" style="font-size:10px;color:var(--dim);margin-top:4px">Demand outpacing supply - seller's market signal</div>
-        </div>
-      </div>
-    </div>
+    <!-- DASHBOARD -->
+    ${renderDashboard(filtered, buyers)}
 
     <!-- STATS -->
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:24px">
@@ -804,6 +890,43 @@ function render() {
 
   renderBuyers(buyers);
   renderMapFilters(filtered, buyers);
+  // Setup ticker drag
+  setTimeout(function(){
+    var track = document.querySelector('.ticker-track');
+    if (!track) return;
+    var isDragging = false, startX = 0, scrollLeft = 0, currentTranslate = 0;
+    function getTranslateX(el) {
+      var st = window.getComputedStyle(el);
+      var matrix = new DOMMatrix(st.transform);
+      return matrix.m41;
+    }
+    function onDown(e) {
+      isDragging = true;
+      startX = (e.touches ? e.touches[0].clientX : e.clientX);
+      currentTranslate = getTranslateX(track);
+      track.classList.add('dragging');
+      track.style.transform = 'translateX(' + currentTranslate + 'px)';
+    }
+    function onMove(e) {
+      if (!isDragging) return;
+      e.preventDefault();
+      var x = (e.touches ? e.touches[0].clientX : e.clientX);
+      var dx = x - startX;
+      track.style.transform = 'translateX(' + (currentTranslate + dx) + 'px)';
+    }
+    function onUp() {
+      if (!isDragging) return;
+      isDragging = false;
+      track.classList.remove('dragging');
+      track.style.transform = '';
+    }
+    track.addEventListener('mousedown', onDown);
+    track.addEventListener('touchstart', onDown, {passive:false});
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('touchmove', onMove, {passive:false});
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('touchend', onUp);
+  }, 100);
   if (state.showMap && !leafletMap) { setTimeout(positionAndInitMap, 150); } else if (state.showMap && leafletMap) { var ph=document.getElementById('mapPlaceholder'); var wr=document.getElementById('leafletMapWrap'); if(ph && wr && wr.parentNode!==ph){ph.appendChild(wr);wr.style.display='block'} }
   }
 
